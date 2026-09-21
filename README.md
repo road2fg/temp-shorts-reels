@@ -1,0 +1,1 @@
+This repo is used only as temporary public storage while videos are fetched by the Instagram Content Publishing API. Files are uploaded as release assets immediately before a publish and deleted immediately after.
