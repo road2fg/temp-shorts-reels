@@ -1,0 +1,39 @@
+# Studio media relay. The studio's sandboxes cannot upload to uploads.github.com (the egress gateway rejects binary
+# bodies), but they can `git push`. A sandbox pushes ONE file to the orphan branch `relay` (stage/<name>) and dispatches
+# this workflow, which attaches it to the monthly release with the repository's own token. Nothing else is done here.
+name: relay-asset
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: file name under stage/ on the relay branch
+        required: true
+      tag:
+        description: release tag (studio-media-YYYY-MM)
+        required: true
+permissions:
+  contents: write
+concurrency: relay-asset
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: relay
+      - name: attach the file to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ inputs.name }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$NAME" =~ ^[A-Za-z0-9._-]+\.(mp4|jpg|jpeg|png|srt)$ ]] || { echo "bad name"; exit 1; }
+          [[ "$TAG" =~ ^studio-media-[0-9]{4}-[0-9]{2}$ ]] || { echo "bad tag"; exit 1; }
+          test -f "stage/$NAME"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "studio media"
+          if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fxq "$NAME"; then
+            echo "already there"; exit 0
+          fi
+          gh release upload "$TAG" "stage/$NAME"
+          sha256sum "stage/$NAME"
